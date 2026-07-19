@@ -16,7 +16,7 @@ async def ask_question(request: QuestionRequest):
     try:
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            return {"error": "ANTHROPIC_API_KEY not configured", "answer": "Demo mode: No API key"}
+            return {"error": "API key not configured", "answer": None}
 
         import requests
 
@@ -24,22 +24,23 @@ async def ask_question(request: QuestionRequest):
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
+                "anthropic-version": "2024-06-01",
                 "content-type": "application/json"
             },
             json={
-                "model": "claude-opus-4-8",
-                "max_tokens": 500,
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 1024,
                 "messages": [{
                     "role": "user",
                     "content": f"Question: {request.query}\n\nAnswer concisely."
                 }]
             },
-            timeout=30
+            timeout=8
         )
 
         if response.status_code != 200:
-            return {"error": f"API error {response.status_code}", "answer": "Demo mode: API call failed"}
+            error_detail = response.json().get("error", {}).get("message", f"HTTP {response.status_code}") if response.text else f"HTTP {response.status_code}"
+            return {"error": f"API request failed: {error_detail}", "answer": None}
 
         data = response.json()
         answer = data.get("content", [{}])[0].get("text", "No response")
@@ -47,7 +48,10 @@ async def ask_question(request: QuestionRequest):
         return {
             "answer": answer,
             "sources": [],
-            "model": "claude-opus-4-8"
+            "model": "claude-3-5-sonnet-20241022"
         }
     except Exception as e:
-        return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Claude API"}
+        error_msg = str(e)
+        if "timeout" in error_msg.lower():
+            error_msg = "Request timed out - API is taking too long to respond"
+        return {"error": f"Failed to process question: {error_msg}", "answer": None}

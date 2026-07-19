@@ -178,7 +178,7 @@
                 });
                 const data = await res.json();
 
-                if (data.answer) {
+                if (data.answer && data.answer !== null) {
                     let html = `<div class="status success">`;
                     html += `<strong>💡 Trả lời:</strong><br>${data.answer}`;
                     if (data.sources && data.sources.length > 0) {
@@ -189,8 +189,10 @@
                     }
                     html += `</div>`;
                     document.getElementById('results').innerHTML = html;
-                } else {
+                } else if (data.error) {
                     showStatus(`❌ Lỗi: ${data.error}`, 'error');
+                } else {
+                    showStatus(`❌ Unexpected response`, 'error');
                 }
             } catch (e) {
                 showStatus(`❌ Error: ${e.message}`, 'error');
