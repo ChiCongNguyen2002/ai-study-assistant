@@ -24,15 +24,16 @@ async def ask_question(request: QuestionRequest):
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": api_key,
-                "anthropic-version": "2024-06-01",
+                "anthropic-version": "2023-12-01",
                 "content-type": "application/json"
             },
             json={
                 "model": "claude-3-5-sonnet-20241022",
                 "max_tokens": 1024,
+                "system": "Bạn là một trợ lý AI hữu ích. Hãy trả lời ngắn gọn và chính xác.",
                 "messages": [{
                     "role": "user",
-                    "content": f"Question: {request.query}\n\nAnswer concisely."
+                    "content": request.query
                 }]
             },
             timeout=8
