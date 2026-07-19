@@ -11,28 +11,17 @@ router = APIRouter()
 class QuestionRequest(BaseModel):
     query: str
 
-# Lazy load client only when needed
-_client = None
-
-def get_client():
-    global _client
-    if _client is None:
-        try:
-            from anthropic import Anthropic
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if api_key:
-                _client = Anthropic(api_key=api_key)
-        except Exception as e:
-            print(f"Warning: Could not initialize Anthropic client: {e}")
-    return _client
-
 @router.post("/questions")
 async def ask_question(request: QuestionRequest):
     try:
-        client = get_client()
-        if not client:
-            return {"error": "ANTHROPIC_API_KEY not configured or client unavailable"}
+        # Lazy import and init - ONLY when endpoint called
+        from anthropic import Anthropic
 
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            return {"error": "ANTHROPIC_API_KEY not configured"}
+
+        client = Anthropic(api_key=api_key)
         query = request.query
         results = []
 
