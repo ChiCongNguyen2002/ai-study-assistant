@@ -28,7 +28,7 @@ async def ask_question(request: QuestionRequest):
                 "content-type": "application/json"
             },
             json={
-                "model": "claude-3-5-sonnet-20241022",
+                "model": "claude-opus-4-8",
                 "max_tokens": 1024,
                 "system": "Bạn là một trợ lý AI hữu ích. Hãy trả lời ngắn gọn và chính xác.",
                 "messages": [{
