@@ -18,83 +18,36 @@ async def ask_question(request: QuestionRequest):
         if not api_key:
             return {"error": "ANTHROPIC_API_KEY not configured", "answer": "Demo mode: No API key"}
 
-        try:
-            import httpx
-            import json
+        import requests
 
-            # Use REST API directly (avoids httpx proxies SDK issue on Vercel)
-            import requests
-
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": "claude-opus-4-8",
-                    "max_tokens": 500,
-                    "messages": [{
-                        "role": "user",
-                        "content": f"Question: {request.query}\n\nAnswer concisely."
-                    }]
-                },
-                timeout=30
-            )
-
-            if response.status_code != 200:
-                return {"error": f"API error {response.status_code}", "answer": "Demo mode: API call failed"}
-
-            data = response.json()
-            answer = data.get("content", [{}])[0].get("text", "No response")
-
-                return {
-                    "answer": answer,
-                    "sources": [],
-                    "model": "claude-opus-4-8"
-                }
-        except Exception as e:
-            return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Claude API"}
-
-        query = request.query
-        results = []
-
-        if firebase_init.db:
-            try:
-                docs = firebase_init.db.collection("documents").stream()
-                for doc in docs:
-                    filename = doc.get("filename", "")
-                    if any(word.lower() in query.lower() for word in query.split()):
-                        results.append({"filename": filename})
-            except Exception as e:
-                print(f"Database query warning: {e}")
-
-        context = "Study materials available."
-        if results:
-            context += f" Found {len(results)} relevant documents: " + ", ".join([r['filename'] for r in results])
-
-        try:
-            response = client.messages.create(
-                model="claude-opus-4-8",
-                max_tokens=500,
-                messages=[{
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-opus-4-8",
+                "max_tokens": 500,
+                "messages": [{
                     "role": "user",
-                    "content": f"""Context: {context}
-
-Question: {query}
-
-Answer based on the study materials available."""
+                    "content": f"Question: {request.query}\n\nAnswer concisely."
                 }]
-            )
+            },
+            timeout=30
+        )
 
-            return {
-                "answer": response.content[0].text,
-                "sources": results,
-                "model": "claude-opus-4-8"
-            }
-        except Exception as e:
-            return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Anthropic API"}
+        if response.status_code != 200:
+            return {"error": f"API error {response.status_code}", "answer": "Demo mode: API call failed"}
 
+        data = response.json()
+        answer = data.get("content", [{}])[0].get("text", "No response")
+
+        return {
+            "answer": answer,
+            "sources": [],
+            "model": "claude-opus-4-8"
+        }
     except Exception as e:
-        return {"error": f"Unexpected error: {str(e)}", "answer": "Demo mode active"}
+        return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Claude API"}
