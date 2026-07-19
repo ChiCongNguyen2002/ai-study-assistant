@@ -1,10 +1,14 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 from . import firebase_init
 
 router = APIRouter()
 
+class SearchRequest(BaseModel):
+    query: str
+
 @router.post("/search")
-async def search(query: str):
+async def search(request: SearchRequest):
     try:
         if firebase_init.db is None:
             return {"results": [], "count": 0, "message": "Database not configured"}
@@ -14,7 +18,7 @@ async def search(query: str):
 
         for doc in docs:
             filename = doc.get("filename", "")
-            if any(word.lower() in query.lower() for word in query.split()):
+            if any(word.lower() in request.query.lower() for word in request.query.split()):
                 results.append({
                     "id": doc.id,
                     "filename": filename,
