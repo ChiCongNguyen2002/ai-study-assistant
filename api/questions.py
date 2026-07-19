@@ -19,17 +19,43 @@ async def ask_question(request: QuestionRequest):
             return {"error": "ANTHROPIC_API_KEY not configured", "answer": "Demo mode: No API key"}
 
         try:
-            from anthropic import Anthropic
             import httpx
+            import json
 
-            # Create custom HTTP client without proxies for Vercel compatibility
-            http_client = httpx.Client(
-                verify=True,
-                # Don't pass proxies parameter - Vercel's httpx doesn't support it
+            # Use REST API directly (avoids httpx proxies SDK issue on Vercel)
+            import requests
+
+            response = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                },
+                json={
+                    "model": "claude-opus-4-8",
+                    "max_tokens": 500,
+                    "messages": [{
+                        "role": "user",
+                        "content": f"Question: {request.query}\n\nAnswer concisely."
+                    }]
+                },
+                timeout=30
             )
-            client = Anthropic(api_key=api_key, http_client=http_client)
+
+            if response.status_code != 200:
+                return {"error": f"API error {response.status_code}", "answer": "Demo mode: API call failed"}
+
+            data = response.json()
+            answer = data.get("content", [{}])[0].get("text", "No response")
+
+                return {
+                    "answer": answer,
+                    "sources": [],
+                    "model": "claude-opus-4-8"
+                }
         except Exception as e:
-            return {"error": f"Anthropic init failed: {str(e)}", "answer": "Demo mode: Could not initialize Anthropic"}
+            return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Claude API"}
 
         query = request.query
         results = []
