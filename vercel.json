@@ -1,10 +1,23 @@
 {
   "buildCommand": "pip install -r requirements.txt",
-  "installCommand": "pip install -r requirements.txt",
   "framework": "python",
   "functions": {
-    "api/*.py": {
+    "api/main.py": {
       "maxDuration": 30
     }
-  }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/main.py"
+    },
+    {
+      "src": "/public/(.*)",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/index.html"
+    }
+  ]
 }
