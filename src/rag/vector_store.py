@@ -1,6 +1,6 @@
 """Vector database management."""
 import chromadb
-from typing import List, Dict, Tuple
+from typing import List, Dict, Optional
 from src.config.rag_settings import rag_settings
 
 
@@ -35,9 +35,9 @@ class VectorStore:
             documents_text.append(doc.get("content", ""))
             metadatas.append({
                 "source": doc.get("source", "unknown"),
-                "page": str(doc.get("page", 0)),
+                "page": int(doc.get("page", 0)),
                 "sensitivity": doc.get("sensitivity", "MEDIUM"),
-                "chunk_index": str(doc.get("chunk_index", 0))
+                "chunk_index": int(doc.get("chunk_index", 0))
             })
 
         # upsert (not add) so re-running ingestion is idempotent and safe
@@ -50,25 +50,30 @@ class VectorStore:
 
         return len(ids)
 
-    def search(self, query: str, top_k: int = None) -> List[Tuple[str, float, Dict]]:
+    def search(self, query: str, top_k: int = None,
+               min_similarity: Optional[float] = None) -> List[Dict]:
         """
-        Search for relevant documents.
+        Search for relevant documents above a similarity threshold.
 
         Args:
             query: Search query
-            top_k: Number of results to return
+            top_k: Number of candidates to fetch before filtering
+            min_similarity: Minimum similarity (0-1 scale) to keep a
+                result; defaults to rag_settings.SIMILARITY_THRESHOLD.
+                Pass 0 to disable filtering (e.g. for a broad
+                candidate pool that will be reranked downstream).
 
         Returns:
-            List of (content, score, metadata) tuples
+            List of result dicts sorted by similarity descending
         """
         top_k = top_k or rag_settings.TOP_K_RESULTS
+        threshold = rag_settings.SIMILARITY_THRESHOLD if min_similarity is None else min_similarity
 
         results = self.collection.query(
             query_texts=[query],
             n_results=top_k
         )
 
-        # Format results
         formatted_results = []
         if results["documents"] and len(results["documents"]) > 0:
             docs = results["documents"][0]
@@ -79,16 +84,65 @@ class VectorStore:
                 # Convert distance to similarity (cosine distance to similarity)
                 similarity = 1 - distance
 
+                if similarity < threshold:
+                    continue
+
                 formatted_results.append({
                     "content": doc,
                     "similarity": round(similarity * 100, 1),  # 0-100%
                     "source": metadata.get("source", "unknown"),
                     "page": int(metadata.get("page", 0)),
+                    "chunk_index": int(metadata.get("chunk_index", 0)),
                     "sensitivity": metadata.get("sensitivity", "MEDIUM"),
                     "metadata": metadata
                 })
 
         return formatted_results
+
+    def get_neighbor_chunks(self, source: str, chunk_index: int, window: int = 2) -> List[Dict]:
+        """
+        Fetch the chunks immediately before/after a given chunk in the
+        same source document, to reconstruct a multi-step procedure
+        that a single top-k similarity match would only capture part of.
+
+        Args:
+            source: Document filename the chunk belongs to
+            chunk_index: Index of the anchor chunk
+            window: How many chunks to include on each side
+
+        Returns:
+            List of neighboring chunk dicts (excluding the anchor),
+            ordered by chunk_index
+        """
+        target_indices = [
+            i for i in range(chunk_index - window, chunk_index + window + 1)
+            if i != chunk_index and i >= 0
+        ]
+        if not target_indices:
+            return []
+
+        results = self.collection.get(
+            where={
+                "$and": [
+                    {"source": {"$eq": source}},
+                    {"chunk_index": {"$in": target_indices}}
+                ]
+            }
+        )
+
+        neighbors = []
+        for doc, metadata in zip(results.get("documents", []), results.get("metadatas", [])):
+            neighbors.append({
+                "content": doc,
+                "source": metadata.get("source", "unknown"),
+                "page": int(metadata.get("page", 0)),
+                "chunk_index": int(metadata.get("chunk_index", 0)),
+                "sensitivity": metadata.get("sensitivity", "MEDIUM"),
+                "metadata": metadata
+            })
+
+        neighbors.sort(key=lambda c: c["chunk_index"])
+        return neighbors
 
     def clear(self):
         """Clear all documents from vector store."""

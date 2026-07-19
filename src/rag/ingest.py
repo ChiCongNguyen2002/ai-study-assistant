@@ -1,7 +1,7 @@
 """Document ingestion pipeline: load -> chunk -> embed into vector store."""
 from typing import Dict
 from src.config.rag_settings import rag_settings
-from src.rag.loaders import PDFLoader, ConfluenceLoader
+from src.rag.loaders import PDFLoader, DocxLoader, ConfluenceLoader
 from src.rag.chunker import TextChunker
 from src.rag.vector_store import VectorStore
 
@@ -17,6 +17,7 @@ def ingest_documents(vector_store: VectorStore = None) -> Dict:
     vector_store = vector_store or VectorStore()
 
     raw_documents = PDFLoader.load_all_pdfs(rag_settings.PDF_PATH)
+    raw_documents.extend(DocxLoader.load_all_docx(rag_settings.PDF_PATH))
 
     if rag_settings.CONFLUENCE_URL and rag_settings.CONFLUENCE_USERNAME and rag_settings.CONFLUENCE_API_TOKEN:
         confluence_loader = ConfluenceLoader(
