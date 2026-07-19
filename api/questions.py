@@ -24,7 +24,7 @@ async def ask_question(request: QuestionRequest):
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": api_key,
-                "anthropic-version": "2023-12-01",
+                "anthropic-version": "2023-06-01",
                 "content-type": "application/json"
             },
             json={
