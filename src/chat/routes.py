@@ -2,6 +2,7 @@
 from fastapi import APIRouter, status
 from src.chat.schemas import ChatRequest, ChatResponse
 from src.chat.service import ChatService
+from src.rag.ingest import ingest_documents
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 chat_service = ChatService()
@@ -58,3 +59,16 @@ async def get_stats():
         "status": "ok",
         "vector_db": chat_service.get_vector_db_stats()
     }
+
+
+@router.post(
+    "/ingest",
+    status_code=status.HTTP_200_OK,
+    summary="Reload knowledge base",
+    description="Load documents from configured sources (PDF, Confluence), "
+                 "chunk them, and upsert into the vector store"
+)
+async def trigger_ingest():
+    """Trigger a batch (re)ingestion of documents into the vector store."""
+    summary = ingest_documents(chat_service.vector_store)
+    return {"status": "ok", "result": summary}

@@ -40,7 +40,9 @@ class VectorStore:
                 "chunk_index": str(doc.get("chunk_index", 0))
             })
 
-        self.collection.add(
+        # upsert (not add) so re-running ingestion is idempotent and safe
+        # for daily batch reloads without failing on duplicate chunk IDs
+        self.collection.upsert(
             ids=ids,
             documents=documents_text,
             metadatas=metadatas

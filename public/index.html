@@ -40,7 +40,11 @@
             letter-spacing: 1px;
             font-weight: 600;
         }
-        input[type="file"],
+        .section p.hint {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 10px;
+        }
         input[type="text"] {
             width: 100%;
             padding: 12px;
@@ -67,10 +71,19 @@
             width: 100%;
             transition: all 0.3s;
         }
+        button.secondary {
+            background: #f0f0f0;
+            color: #555;
+        }
         button:hover {
             background: #5568d3;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button.secondary:hover {
+            background: #e2e2e2;
+            color: #555;
+            box-shadow: none;
         }
         button:active {
             transform: translateY(0);
@@ -106,6 +119,29 @@
             font-size: 13px;
             border-left: 3px solid #667eea;
         }
+        .confidence {
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        .follow-up {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: 1px solid #ddd;
+            color: #667eea;
+            padding: 8px 12px;
+            margin-top: 6px;
+            font-weight: 400;
+        }
+        .follow-up:hover {
+            background: #f5f5ff;
+            color: #667eea;
+            transform: none;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -113,9 +149,9 @@
         <h1>📚 AI Study Assistant</h1>
 
         <div class="section">
-            <h2>📤 Upload Documents</h2>
-            <input type="file" id="fileInput" accept=".pdf,.docx" />
-            <button onclick="uploadDocument()" id="uploadBtn">Upload PDF or DOCX</button>
+            <h2>📥 Knowledge Base</h2>
+            <p class="hint">Reload documents from the server's document folder into the vector store.</p>
+            <button class="secondary" onclick="reloadKnowledgeBase()" id="ingestBtn">Reload Knowledge Base</button>
         </div>
 
         <div class="section">
@@ -128,66 +164,67 @@
     </div>
 
     <script>
-        const API_BASE = '/api';
+        const API_BASE = '/api/chat';
 
-        async function uploadDocument() {
-            const file = document.getElementById('fileInput').files[0];
-            if (!file) return alert('Vui lòng chọn file');
-
-            const btn = document.getElementById('uploadBtn');
+        async function reloadKnowledgeBase() {
+            const btn = document.getElementById('ingestBtn');
             btn.classList.add('loading');
-            btn.textContent = 'Đang upload...';
-
-            const formData = new FormData();
-            formData.append('file', file);
+            btn.textContent = 'Đang tải...';
 
             try {
-                const res = await fetch(`${API_BASE}/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch(`${API_BASE}/ingest`, { method: 'POST' });
                 const data = await res.json();
 
-                if (data.status === 'success') {
-                    showStatus(`✅ ${file.name} uploaded`, 'success');
-                    document.getElementById('fileInput').value = '';
+                if (data.status === 'success' || data.status === 'ok') {
+                    const stats = data.result?.vector_db;
+                    const total = stats ? stats.total_documents : '?';
+                    showStatus(`✅ Knowledge base reloaded (${total} chunks indexed)`, 'success');
                 } else {
-                    showStatus(`❌ Lỗi: ${data.message}`, 'error');
+                    showStatus(`❌ Lỗi: ${data.message || 'Unknown error'}`, 'error');
                 }
             } catch (e) {
-                showStatus(`❌ Upload failed: ${e.message}`, 'error');
+                showStatus(`❌ Reload failed: ${e.message}`, 'error');
             } finally {
                 btn.classList.remove('loading');
-                btn.textContent = 'Upload PDF or DOCX';
+                btn.textContent = 'Reload Knowledge Base';
             }
         }
 
-        async function askQuestion() {
-            const query = document.getElementById('queryInput').value.trim();
+        async function askQuestion(query) {
+            query = (query ?? document.getElementById('queryInput').value).trim();
             if (!query) return alert('Vui lòng nhập câu hỏi');
+            document.getElementById('queryInput').value = query;
 
             const btn = document.getElementById('askBtn');
             btn.classList.add('loading');
             btn.textContent = 'Thinking...';
 
             try {
-                const res = await fetch(`${API_BASE}/questions`, {
+                const res = await fetch(`${API_BASE}/message`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query })
                 });
                 const data = await res.json();
 
-                if (data.answer && data.answer !== null) {
+                if (data.answer) {
                     let html = `<div class="status success">`;
                     html += `<strong>💡 Trả lời:</strong><br>${data.answer}`;
+                    html += `<div class="confidence">Confidence: ${Math.round(data.confidence * 100)}%</div>`;
                     if (data.sources && data.sources.length > 0) {
-                        html += `<br><br><strong>📚 Nguồn:</strong><br>`;
+                        html += `<br><strong>📚 Nguồn:</strong><br>`;
                         data.sources.forEach(s => {
-                            html += `<div class="doc-item">📄 ${s.filename}</div>`;
+                            html += `<div class="doc-item">📄 ${s.source} (Page ${s.page}, ${s.similarity}%)</div>`;
                         });
                     }
                     html += `</div>`;
+                    if (data.follow_up_questions && data.follow_up_questions.length > 0) {
+                        html += `<div class="status"><strong>➡️ Câu hỏi liên quan:</strong>`;
+                        data.follow_up_questions.forEach(q => {
+                            html += `<button class="follow-up" onclick="askQuestion(${JSON.stringify(q)})">${q}</button>`;
+                        });
+                        html += `</div>`;
+                    }
                     document.getElementById('results').innerHTML = html;
                 } else if (data.error) {
                     showStatus(`❌ Lỗi: ${data.error}`, 'error');
