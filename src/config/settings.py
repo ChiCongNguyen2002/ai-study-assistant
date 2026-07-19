@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_VERSION: str = "2023-06-01"
     ANTHROPIC_MODEL: str = "claude-opus-4-8"
     ANTHROPIC_MAX_TOKENS: int = 1024
-    ANTHROPIC_TIMEOUT: int = 8
+    ANTHROPIC_TIMEOUT: int = 20  # Increased from 8s for longer queries
 
     # Firebase
     FIREBASE_PROJECT_ID: Optional[str] = os.getenv("FIREBASE_PROJECT_ID")
