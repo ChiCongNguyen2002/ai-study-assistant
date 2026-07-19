@@ -29,13 +29,17 @@ async def upload_document(file: UploadFile = File(...)):
             except Exception as e:
                 print(f"Storage upload warning: {e}")
 
-        firebase_init.db.collection("documents").add({
-            "filename": file.filename,
-            "format": file.filename.split('.')[-1],
-            "size": len(content),
-            "uploaded_at": datetime.now(),
-            "user": "default"
-        })
+        if firebase_init.db:
+            try:
+                firebase_init.db.collection("documents").add({
+                    "filename": file.filename,
+                    "format": file.filename.split('.')[-1],
+                    "size": len(content),
+                    "uploaded_at": datetime.now(),
+                    "user": "default"
+                })
+            except Exception as e:
+                print(f"Database warning: {e}")
 
         return {
             "status": "success",
