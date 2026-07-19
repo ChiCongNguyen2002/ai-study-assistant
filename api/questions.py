@@ -14,14 +14,16 @@ class QuestionRequest(BaseModel):
 @router.post("/questions")
 async def ask_question(request: QuestionRequest):
     try:
-        # Lazy import and init - ONLY when endpoint called
-        from anthropic import Anthropic
-
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            return {"error": "ANTHROPIC_API_KEY not configured"}
+            return {"error": "ANTHROPIC_API_KEY not configured", "answer": "Demo mode: No API key"}
 
-        client = Anthropic(api_key=api_key)
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+        except Exception as e:
+            return {"error": f"Anthropic init failed: {str(e)}", "answer": "Demo mode: Could not initialize Anthropic"}
+
         query = request.query
         results = []
 
@@ -39,23 +41,27 @@ async def ask_question(request: QuestionRequest):
         if results:
             context += f" Found {len(results)} relevant documents: " + ", ".join([r['filename'] for r in results])
 
-        response = client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": f"""Context: {context}
+        try:
+            response = client.messages.create(
+                model="claude-opus-4-8",
+                max_tokens=500,
+                messages=[{
+                    "role": "user",
+                    "content": f"""Context: {context}
 
 Question: {query}
 
 Answer based on the study materials available."""
-            }]
-        )
+                }]
+            )
 
-        return {
-            "answer": response.content[0].text,
-            "sources": results,
-            "model": "claude-opus-4-8"
-        }
+            return {
+                "answer": response.content[0].text,
+                "sources": results,
+                "model": "claude-opus-4-8"
+            }
+        except Exception as e:
+            return {"error": f"API call failed: {str(e)}", "answer": "Demo mode: Could not call Anthropic API"}
+
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"Unexpected error: {str(e)}", "answer": "Demo mode active"}
