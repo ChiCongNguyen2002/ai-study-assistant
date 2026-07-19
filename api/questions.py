@@ -20,7 +20,14 @@ async def ask_question(request: QuestionRequest):
 
         try:
             from anthropic import Anthropic
-            client = Anthropic(api_key=api_key)
+            import httpx
+
+            # Create custom HTTP client without proxies for Vercel compatibility
+            http_client = httpx.Client(
+                verify=True,
+                # Don't pass proxies parameter - Vercel's httpx doesn't support it
+            )
+            client = Anthropic(api_key=api_key, http_client=http_client)
         except Exception as e:
             return {"error": f"Anthropic init failed: {str(e)}", "answer": "Demo mode: Could not initialize Anthropic"}
 
