@@ -1,14 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from firebase_admin import firestore, storage
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from . import firebase_init
 
 load_dotenv('.env.local')
 
 router = APIRouter()
-db = firestore.client()
-bucket = storage.bucket()
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -17,10 +15,21 @@ async def upload_document(file: UploadFile = File(...)):
         if not content:
             raise HTTPException(status_code=400, detail="Empty file")
 
-        blob = bucket.blob(f"documents/{file.filename}")
-        blob.upload_from_string(content)
+        if firebase_init.db is None:
+            return {
+                "status": "warning",
+                "filename": file.filename,
+                "message": "Database not configured, file received but not persisted"
+            }
 
-        db.collection("documents").add({
+        if firebase_init.bucket:
+            try:
+                blob = firebase_init.bucket.blob(f"documents/{file.filename}")
+                blob.upload_from_string(content)
+            except Exception as e:
+                print(f"Storage upload warning: {e}")
+
+        firebase_init.db.collection("documents").add({
             "filename": file.filename,
             "format": file.filename.split('.')[-1],
             "size": len(content),
@@ -39,7 +48,10 @@ async def upload_document(file: UploadFile = File(...)):
 @router.get("/list")
 async def list_documents():
     try:
-        docs = db.collection("documents").stream()
+        if firebase_init.db is None:
+            return {"documents": [], "message": "Database not configured"}
+
+        docs = firebase_init.db.collection("documents").stream()
         result = []
         for doc in docs:
             result.append({
@@ -50,4 +62,4 @@ async def list_documents():
             })
         return {"documents": result}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "documents": []}

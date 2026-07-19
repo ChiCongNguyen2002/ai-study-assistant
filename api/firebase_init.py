@@ -5,25 +5,45 @@ from dotenv import load_dotenv
 
 load_dotenv('.env.local')
 
-firebase_config = {
-    "type": "service_account",
-    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-    "private_key_id": "key-id",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----\n",
-    "client_email": f"firebase-adminsdk@{os.getenv('FIREBASE_PROJECT_ID')}.iam.gserviceaccount.com",
-    "client_id": "123456789",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-}
+db = None
+bucket = None
+app = None
 
 try:
-    app = firebase_admin.initialize_app(
-        credentials.Certificate(firebase_config),
-        {"storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET")}
-    )
-except:
-    app = firebase_admin.get_app()
+    project_id = os.getenv("FIREBASE_PROJECT_ID")
+    if not project_id:
+        raise ValueError("FIREBASE_PROJECT_ID not set")
 
-db = firestore.client()
-bucket = storage.bucket()
+    # Use REST API instead of credentials for Vercel
+    from google.cloud import firestore as fs
+    from google.cloud import storage as st
+    from google.oauth2 import service_account
+
+    # Get credentials from environment
+    creds_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
+
+    if creds_json:
+        # Use explicit credentials if provided
+        import json
+        creds_dict = json.loads(creds_json)
+        credentials_obj = service_account.Credentials.from_service_account_info(creds_dict)
+    else:
+        # Use default app credentials (for Vercel)
+        credentials_obj = None
+
+    # Initialize Firestore
+    db = fs.Client(project=project_id, credentials=credentials_obj)
+
+    # Initialize Storage
+    try:
+        storage_bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET")
+        bucket = st.Client(project=project_id, credentials=credentials_obj).bucket(storage_bucket_name)
+    except Exception as e:
+        print(f"Warning: Storage bucket init failed: {e}")
+        bucket = None
+
+except Exception as e:
+    print(f"Firebase initialization warning: {e}")
+    print("App will use demo mode - no persistence")
+    db = None
+    bucket = None

@@ -3,13 +3,17 @@ from pydantic import BaseModel
 from anthropic import Anthropic
 import os
 from dotenv import load_dotenv
-from firebase_admin import firestore
+from . import firebase_init
 
 load_dotenv('.env.local')
 
 router = APIRouter()
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-db = firestore.client()
+
+api_key = os.getenv("ANTHROPIC_API_KEY")
+if api_key:
+    client = Anthropic(api_key=api_key)
+else:
+    client = None
 
 class QuestionRequest(BaseModel):
     query: str
@@ -17,14 +21,21 @@ class QuestionRequest(BaseModel):
 @router.post("/questions")
 async def ask_question(request: QuestionRequest):
     try:
+        if not client:
+            return {"error": "ANTHROPIC_API_KEY not configured"}
+
         query = request.query
-        docs = db.collection("documents").stream()
         results = []
 
-        for doc in docs:
-            filename = doc.get("filename", "")
-            if any(word.lower() in query.lower() for word in query.split()):
-                results.append({"filename": filename})
+        if firebase_init.db:
+            try:
+                docs = firebase_init.db.collection("documents").stream()
+                for doc in docs:
+                    filename = doc.get("filename", "")
+                    if any(word.lower() in query.lower() for word in query.split()):
+                        results.append({"filename": filename})
+            except Exception as e:
+                print(f"Database query warning: {e}")
 
         context = "Study materials available."
         if results:

@@ -1,13 +1,15 @@
 from fastapi import APIRouter
-from firebase_admin import firestore
+from . import firebase_init
 
 router = APIRouter()
-db = firestore.client()
 
 @router.post("/search")
 async def search(query: str):
     try:
-        docs = db.collection("documents").stream()
+        if firebase_init.db is None:
+            return {"results": [], "count": 0, "message": "Database not configured"}
+
+        docs = firebase_init.db.collection("documents").stream()
         results = []
 
         for doc in docs:
@@ -21,4 +23,4 @@ async def search(query: str):
 
         return {"results": results, "count": len(results)}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "results": [], "count": 0}
