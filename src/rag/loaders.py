@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 from typing import List, Dict
-import PyPDF2
+import fitz  # PyMuPDF
 from docx import Document as DocxDocument
 from datetime import datetime
 
@@ -14,6 +14,13 @@ class PDFLoader:
     def load_pdf(file_path: str) -> List[Dict]:
         """
         Load PDF and extract text per page, with metadata.
+
+        Uses PyMuPDF (fitz) rather than PyPDF2 — PyPDF2 reconstructs
+        word spacing from font glyph metadata, which for Vietnamese
+        fonts frequently drops spaces between words (e.g.
+        "Cácyếutốtácđộngđến giá"). PyMuPDF derives spacing from glyph
+        positions instead and extracts clean, correctly spaced text
+        for the same documents.
 
         Note: pages are returned separately (not pre-chunked) so the
         chunker can merge them per source document and split on
@@ -27,12 +34,10 @@ class PDFLoader:
         """
         pages = []
         try:
-            with open(file_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
-                filename = Path(file_path).name
-
-                for page_num, page in enumerate(reader.pages, 1):
-                    text = page.extract_text()
+            filename = Path(file_path).name
+            with fitz.open(file_path) as doc:
+                for page_num, page in enumerate(doc, 1):
+                    text = page.get_text()
                     if text.strip():
                         pages.append({
                             "content": text,
