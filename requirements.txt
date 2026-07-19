@@ -10,3 +10,5 @@ google-cloud-storage==2.10.0
 google-auth==2.25.2
 PyPDF2==3.0.1
 requests==2.31.0
+chromadb==0.4.24
+langchain==0.1.11

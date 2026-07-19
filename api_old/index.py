@@ -1,5 +1,5 @@
 """Vercel serverless function entry point."""
-from src.app import app
+from src.main import app
 
 # Export for Vercel
 handler = app
